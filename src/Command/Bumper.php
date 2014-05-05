@@ -48,7 +48,7 @@ trait Bumper
 
     protected function bumperFileSystemReady()
     {
-        $task = 'Robo\Task\FileSystem';
+        $task = 'Robot\Task\FileSystem';
         if (!in_array($task, class_uses($this))) {
             throw new RequiredTaskException('Bump', $task);
         }
