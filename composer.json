@@ -1,7 +1,7 @@
 {
     "name": "jadb/robot"
     , "description": "Adds the missing 'T' to Robo"
-    , "version": "0.1.1"
+    , "version": "0.1.2"
     , "type": "library"
     , "keywords": [
         "Robo"
