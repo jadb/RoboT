@@ -14,7 +14,7 @@ have) opened pull requests on [Robo][robo/repo].
 ## Tasks
 
 * ~~[Bower][robo/16]~~
-* GitExtended as Git
+* Git
 * [Semver][robo/19]
 
 ## License
