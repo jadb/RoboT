@@ -68,11 +68,11 @@ trait Bumper
     protected function bumperGitReady()
     {
         $task = 'Robot\Task\Git';
-        if (!in_array($task, class_uses($this)) || !method_exists($this, 'taskGitRequiredClean')) {
+        if (!in_array($task, class_uses($this)) || !method_exists($this, 'taskGitRequirements')) {
             throw new RequiredTaskException('Bumper', $task);
         }
 
-        return $this->taskGitRequiredClean()->run()->wasSuccessful();
+        return $this->taskGitRequirements()->clean()->run()->wasSuccessful();
     }
 
 /**

@@ -6,7 +6,9 @@ use Robo\Output;
 use Robo\Result;
 use Robo\Task\Exec;
 use Robo\Task\Shared\CommandInterface;
+use Robo\Task\Shared\DynamicConfig;
 use Robo\Task\Shared\TaskInterface;
+use Robot\Task\Shared\RequirementStack;
 
 trait Git
 {
@@ -15,9 +17,9 @@ trait Git
         return new GitStackTask($pathToGit);
     }
 
-    protected function taskGitRequiredClean($pathToGit = 'git')
+    protected function taskGitRequirements($pathToGit = 'git')
     {
-        return new GitRequiredCleanTask($pathToGit);
+        return new GitRequirementStack($pathToGit);
     }
 }
 
@@ -170,66 +172,48 @@ class GitStackTask implements TaskInterface, CommandInterface
     }
 }
 
-class GitRequiredCleanTask implements TaskInterface, CommandInterface
+class GitRequirementStack extends RequirementStack
 {
-    const DIFFINDEX = 'diff --shortstat';
+    use Output;
 
-    const DIFFCACHE = 'diff --shortstat --cached';
-
-    const COMMAND = '[[ $(echo "`%s`" 2> /dev/null | tail -n1) == "" ]]';
-
-    protected $git;
-
-    protected $cache = true;
-
-    protected $index = true;
+    protected $requirements = [
+        'Git repository missing' => '[ -d .git ] || %executable% rev-parse --git-dir 2> /dev/null',
+    ];
+    protected $stopOnFail = true;
 
     public function __construct($pathToGit = 'git')
     {
-        $this->git = $pathToGit;
+        $this->executable = 'git';
     }
 
-    public function noCache()
+    public function check()
     {
-        if (!$this->index) {
-            throw new TaskException();
+        $closure = function($command) {
+            return str_replace('%executable%', $this->executable, $command);
+        };
+        $this->requirements = array_map($closure, $this->requirements);
+        return parent::check();
+    }
+
+    public function clean($cache = true)
+    {
+        $command = '[[ $(echo "`%s`" 2> /dev/null | tail -n1) == "" ]]';
+        $this->requirements['Dirty repository index'] = sprintf($command, '%executable% diff --shortstat');
+        if ($cache) {
+            $this->requirements['Dirty repository cache'] = sprintf($command, '%executable% diff --shortstat --cached');
         }
-        $this->cache = false;
         return $this;
     }
 
-    public function noIndex()
+    public function requirements()
     {
-        if (!$this->cache) {
-            throw new TaskException();
-        }
-        $this->index = false;
-        return $this;
-    }
-
-    public function getCommand()
-    {
-        $command = [];
-        if ($this->index) {
-            array_push($command, $this->git . ' ' . self::DIFFINDEX);
-        }
-
-        if ($this->cache) {
-            array_push($command, $this->git . ' ' . self::DIFFCACHE);
-        }
-
-
-        return sprintf(self::COMMAND, implode('``', $command));
+        return $this->requirements;
     }
 
     public function run()
     {
-        exec($this->getCommand(), $output, $code);
-
-        if ($code) {
-            return Result::error($this, 'Dirty repo');
-        }
-
-        return Result::success($this);
+        $this->printTaskInfo('checking requirements...');
+        return parent::run();
     }
+
 }
