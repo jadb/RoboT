@@ -6,8 +6,35 @@ use Robot\Command\Exception\RequiredTaskException;
 
 trait Watcher
 {
+    protected $taskWatch;
+
 /**
- * @desc Auto-updates by watching `composer.json`.
+ * @desc Runs all the `watch:*` commands.
+ */
+    public function watch() {
+        if (!$this->watcherReady()) {
+            return Result::error($this);
+        }
+
+        $this->watcherCodeceptionMonitor();
+        $this->watcherComposerMonitor();
+        $this->taskWatch->run();
+    }
+
+/**
+ * @desc Runs `codecept build` by monitoring codeception paths.
+ */
+    public function watchCodeception() {
+        if (!$this->watcherReady()) {
+            return Result::error($this);
+        }
+
+        $this->watcherCodeceptionMonitor();
+        $this->taskWatch->run();
+    }
+
+/**
+ * @desc Runs `composer update` by monitoring `composer.json`.
  */
     public function watchComposer()
     {
@@ -15,16 +42,50 @@ trait Watcher
             return Result::error($this);
         }
 
-        $this->taskWatch()->monitor('composer.json', function() {
+        $this->watcherComposerMonitor();
+        $this->taskWatch->run();
+    }
+
+    protected function watcherCodeceptionMonitor() {
+        $callback = function() {
+            $this->taskExec('vendor/bin/codecept build')->run();
+        };
+
+        $this->taskWatch = $this->taskWatch->monitor('tests/_helpers', $callback);
+
+        foreach (['acceptance', 'functional', 'unit'] as $name) {
+            $file = "tests/$name.suite.yml";
+            if (!file_exists($file)) {
+                $file = "tests/$name.suite.dist.yml";
+                if (!file_exists($file)) {
+                    continue;
+                }
+            }
+            $this->taskWatch = $this->taskWatch->monitor($file, $callback);
+        }
+    }
+
+    protected function watcherComposerMonitor() {
+        $this->taskWatch = $this->taskWatch->monitor('composer.json', function() {
             $this->taskComposerUpdate()->run();
-        })->run();
+        });
     }
 
     protected function watcherComposerReady()
     {
         $task = 'Robo\Task\Composer';
         if (!in_array($task, class_uses($this))) {
-            throw new RequiredTaskException('Bumper', $task);
+            throw new RequiredTaskException('Composer', $task);
+        }
+
+        return true;
+    }
+
+    protected function watcherExecReady()
+    {
+        $task = 'Robo\Task\Exec';
+        if (!in_array($task, class_uses($this))) {
+            throw new RequiredTaskException('Exec', $task);
         }
 
         return true;
@@ -34,7 +95,7 @@ trait Watcher
     {
         $task = 'Robo\Task\Watch';
         if (!in_array($task, class_uses($this))) {
-            throw new RequiredTaskException('Bumper', $task);
+            throw new RequiredTaskException('Watch', $task);
         }
 
         return true;
@@ -42,7 +103,15 @@ trait Watcher
 
     protected function watcherReady()
     {
-        return $this->watcherWatchReady()
-            && $this->watcherComposerReady();
+        if (
+            empty($this->taskWatch)
+            && $this->watcherComposerReady()
+            && $this->watcherExecReady()
+            && $this->watcherWatchReady()
+        ) {
+            $this->taskWatch = $this->taskWatch();
+        }
+
+        return !empty($this->taskWatch);
     }
 }
